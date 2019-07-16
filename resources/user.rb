@@ -27,30 +27,34 @@ property :encrypted_password, String
 property :valid_until,        String
 property :attributes,         Hash, default: {}
 
-# Connection prefernces
-property :user,     String, default: 'postgres'
-property :database, String
-property :host,     String
-property :port,     Integer, default: 5432
+# Connection preferences
+property :user,               String, default: 'postgres', desired_state: false
+property :ctrl_password,      [String, nil], default: nil, sensitive: true, desired_state: false
+property :host,               [String, nil], default: nil, desired_state: false
+property :port,               Integer, default: 5432, desired_state: false
+property :remote_connection,  [true, false], default: false, desired_state: false
 
 action :create do
-  Chef::Log.warn('You cannot use "attributes" property with create action.') unless new_resource.attributes.empty?
+  Chef::Log.warn('You cannot use "attributes" property with the create action.') unless new_resource.attributes.empty?
 
   execute "create postgresql user #{new_resource.create_user}" do # ~FC009
-    user 'postgres'
+    user 'postgres' unless new_resource.remote_connection
     command create_user_sql(new_resource)
-    sensitive new_resource.sensitive
-    not_if { follower? || user_exists?(new_resource) }
+    environment 'PGPASSWORD' => new_resource.ctrl_password unless new_resource.ctrl_password.nil?
+    sensitive true
+    not_if { ! new_resource.remote_connection && follower? }
+    not_if { user_exists?(new_resource) }
   end
 end
 
 action :update do
   if new_resource.attributes.empty?
     execute "update postgresql user #{new_resource.create_user}" do
-      user 'postgres'
+      user 'postgres' unless new_resource.remote_connection
       command update_user_sql(new_resource)
+      environment 'PGPASSWORD' => new_resource.ctrl_password unless new_resource.ctrl_password.nil?
       sensitive true
-      not_if { follower? }
+      not_if { ! new_resource.remote_connection && follower? }
       only_if { user_exists?(new_resource) }
     end
   else
@@ -62,10 +66,11 @@ action :update do
           end
 
       execute "Update postgresql user #{new_resource.create_user} to set #{attr}" do
-        user 'postgres'
+        user 'postgres' unless new_resource.remote_connection
         command update_user_with_attributes_sql(new_resource, v)
+        environment 'PGPASSWORD' => new_resource.ctrl_password unless new_resource.ctrl_password.nil?
         sensitive true
-        not_if { follower? }
+        not_if { ! new_resource.remote_connection && follower? }
         only_if { user_exists?(new_resource) }
       end
     end
@@ -74,10 +79,11 @@ end
 
 action :drop do
   execute "drop postgresql user #{new_resource.create_user}" do
-    user 'postgres'
+    user 'postgres' unless new_resource.remote_connection
     command drop_user_sql(new_resource)
+    environment 'PGPASSWORD' => new_resource.ctrl_password unless new_resource.ctrl_password.nil?
     sensitive true
-    not_if { follower? }
+    not_if { ! new_resource.remote_connection && follower? }
     only_if { user_exists?(new_resource) }
   end
 end
