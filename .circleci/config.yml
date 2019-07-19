@@ -1,45 +1,42 @@
 version: 2.1
 
 orbs:
-  kitchen: sous-chefs/kitchen@1.0.0
+  kitchen: sous-chefs/kitchen@2.0.3
 
 workflows:
   kitchen:
     jobs:
-      - kitchen/danger:
-          name: danger
-          context: Danger
-      - kitchen/lint:
-          name: lint
+      - kitchen/delivery:
+          name: delivery
       - kitchen/dokken:
           name: repo
           suite: repo
-          requires: [ lint, danger ]
+          requires: [ delivery, danger ]
       - kitchen/dokken:
           name: server-install
           suite: server-install
-          requires: [ lint, danger ]
+          requires: [ delivery, danger ]
       - kitchen/dokken:
           name: client-install
           suite: client-install
-          requires: [ lint, danger ]
+          requires: [ delivery, danger ]
       - kitchen/dokken-single:
           name: access
           suite: access
           platform: centos-7
-          requires: [ lint, danger ]
+          requires: [ delivery, danger ]
       - kitchen/dokken-single:
           name: ident
           suite: ident
           platform: centos-7
-          requires: [ lint, danger ]
+          requires: [ delivery, danger ]
       - kitchen/dokken-single:
           name: extension
           suite: extension
           platform: centos-7
-          requires: [ lint, danger ]
+          requires: [ delivery, danger ]
       - kitchen/dokken-single:
           name: initdb
           suite: initdb-locale
           platform: centos-7
-          requires: [ lint, danger ]
+          requires: [ delivery, danger ]
