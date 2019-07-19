@@ -1,32 +1,67 @@
 ---
 driver:
-  name: vagrant
+  name: dokken
+  privileged: true # because Docker and SystemD/Upstart
+  chef_version: <%= ENV['CHEF_VERSION'] || 'current' %>
+
+transport:
+  name: dokken
 
 provisioner:
-  name: chef_solo
-  product_name: chef
-  product_version: 14.2
-  enforce_idempotency: true
-  multiple_converge: 2
-  solo_rb:
-    treat_deprecation_warnings_as_errors: true
-    silence_deprecation_warnings:
-    - chef-25  #Depending on the windows cookbook fails this right now (Build Essential)
-
-verifier:
-  name: inspec
+  name: dokken
 
 platforms:
   - name: amazonlinux
-    driver_config:
-      box: mvbcoding/awslinux
-  - name: centos-6
-  - name: centos-7
+    driver:
+      image: dokken/amazonlinux
+      pid_one_command: /sbin/init
+      # intermediate_instructions:
+        # - RUN echo NETWORKING=yes > /etc/sysconfig/network
+      # Note for future cokobook contributors: faking out the network like we do above breaks the network
+      # e.g. `getaddrinfo: Temporary failure in name resolution`
+
   - name: debian-8
+    driver:
+      image: dokken/debian-8
+      pid_one_command: /bin/systemd
+      intermediate_instructions:
+        - RUN /usr/bin/apt-get update
+
   - name: debian-9
-  - name: fedora-28
+    driver:
+      image: dokken/debian-9
+      pid_one_command: /bin/systemd
+      intermediate_instructions:
+        - RUN /usr/bin/apt-get update
+
+  - name: centos-6
+    driver:
+      image: dokken/centos-6
+      pid_one_command: /sbin/init
+
+  - name: centos-7
+    driver:
+      image: dokken/centos-7
+      pid_one_command: /usr/lib/systemd/systemd
+
+  - name: fedora-latest
+    driver:
+      image: dokken/fedora-latest
+      pid_one_command: /usr/lib/systemd/systemd
+
   - name: ubuntu-16.04
+    driver:
+      image: dokken/ubuntu-16.04
+      pid_one_command: /bin/systemd
+      intermediate_instructions:
+        - RUN /usr/bin/apt-get update
+
   - name: ubuntu-18.04
+    driver:
+      image: dokken/ubuntu-18.04
+      pid_one_command: /bin/systemd
+      intermediate_instructions:
+        - RUN /usr/bin/apt-get update
 
 suites:
 - name: repo
