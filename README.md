@@ -315,6 +315,7 @@ Name                | Types   | Description                                     
 `host`              | String  | Define the host server where the database creation will be executed | Not set (localhost) | no
 `port`              | Integer | Define the port of PostgreSQL server                                | 5432                | no
 `remote_connection` | String  | To be set to true if the server is remote                           | false               | no
+`aws_rds`           | String  | To be set to true if the server is a AWS RDS                        | false               | no
 `encoding`          | String  | Define database encoding                                            | 'UTF-8'             | no
 `locale`            | String  | Define database locale                                              | 'en_US.UTF-8'       | no
 `owner`             | String  | Define the owner of the database                                    | Not set             | no
