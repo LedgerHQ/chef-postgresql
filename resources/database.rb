@@ -27,6 +27,7 @@ property :ctrl_password,      [String, nil], default: nil, sensitive: true, desi
 property :host,               [String, nil], default: nil, desired_state: false
 property :port,               Integer, default: 5432, desired_state: false
 property :remote_connection,  [true, false], default: false, desired_state: false
+property :aws_rds,            [true, false], default: false, desired_state: false
 
 action :create do
   createdb = 'createdb'
@@ -38,6 +39,22 @@ action :create do
   createdb << " -h #{new_resource.host}" if new_resource.host
   createdb << " -p #{new_resource.port}"
   createdb << " #{new_resource.database}"
+
+  # On a RDS database, the role creating a database has to be a member of the
+  # role that will own the database
+  # https://stackoverflow.com/a/34898033
+  if new_resource.remote_connection && new_resource.aws_rds && new_resource.owner
+    # the database doesn't yet exist so connect to the postgres database
+    # to grant role membership
+    new_resource_membership = new_resource.dup
+    new_resource_membership.database = 'postgres'
+    execute "grant #{new_resource.owner} membership to #{new_resource.user}" do
+      command rds_grant_role_membership(new_resource_membership)
+      environment 'PGPASSWORD' => new_resource.ctrl_password
+      sensitive true
+      not_if { database_exists?(new_resource) }
+    end
+  end
 
   bash "create database #{new_resource.database}" do
     code createdb

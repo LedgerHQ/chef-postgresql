@@ -142,6 +142,13 @@ module PostgresqlCookbook
       psql_command_string(new_resource, sql)
     end
 
+    def rds_grant_role_membership(new_resource)
+      if new_resource.remote_connection && new_resource.aws_rds && new_resource.owner
+        sql = %(GRANT #{new_resource.owner} TO #{new_resource.user})
+        psql_command_string(new_resource, sql)
+      end
+    end
+
     def data_dir(version = node.run_state['postgresql']['version'])
       case node['platform_family']
       when 'rhel', 'fedora'
