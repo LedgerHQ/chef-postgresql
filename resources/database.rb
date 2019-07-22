@@ -15,16 +15,18 @@
 # limitations under the License.
 #
 
+property :database, String, name_property: true
 property :template, String, default: 'template1'
 property :encoding, String, default: 'UTF-8'
 property :locale,   String, default: 'en_US.UTF-8'
 property :owner,    String
 
 # Connection prefernces
-property :user,     String, default: 'postgres'
-property :database, String, name_property: true
-property :host,     [String, nil], default: nil
-property :port,     Integer, default: 5432
+property :user,               String, default: 'postgres', desired_state: false
+property :ctrl_password,      [String, nil], default: nil, sensitive: true, desired_state: false
+property :host,               [String, nil], default: nil, desired_state: false
+property :port,               Integer, default: 5432, desired_state: false
+property :remote_connection,  [true, false], default: false, desired_state: false
 
 action :create do
   createdb = 'createdb'
@@ -32,31 +34,35 @@ action :create do
   createdb << " -l #{new_resource.locale}" if new_resource.locale
   createdb << " -T #{new_resource.template}" unless new_resource.template.empty?
   createdb << " -O #{new_resource.owner}" if new_resource.owner
-  createdb << " -U #{new_resource.user}" if new_resource.user
+  createdb << " -U #{new_resource.user}"
   createdb << " -h #{new_resource.host}" if new_resource.host
-  createdb << " -p #{new_resource.port}" if new_resource.port
+  createdb << " -p #{new_resource.port}"
   createdb << " #{new_resource.database}"
 
-  bash "Create Database #{new_resource.database}" do
+  bash "create database #{new_resource.database}" do
     code createdb
-    user new_resource.user
-    not_if { follower? }
+    user new_resource.user unless new_resource.remote_connection
+    environment 'PGPASSWORD' => new_resource.ctrl_password unless new_resource.ctrl_password.nil?
+    sensitive true
+    not_if { ! new_resource.remote_connection && follower? }
     not_if { database_exists?(new_resource) }
   end
 end
 
 action :drop do
-  converge_by "Drop PostgreSQL Database #{new_resource.database}" do
+  converge_by "drop PostgreSQL database #{new_resource.database}" do
     dropdb = 'dropdb'
     dropdb << " -U #{new_resource.user}" if new_resource.user
     dropdb << " --host #{new_resource.host}" if new_resource.host
     dropdb << " --port #{new_resource.port}" if new_resource.port
     dropdb << " #{new_resource.database}"
 
-    bash "drop postgresql database #{new_resource.database})" do
-      user 'postgres'
+    bash "drop Postgresql database #{new_resource.database})" do
       code dropdb
-      not_if { follower? }
+      user 'postgres' unless new_resource.remote_connection
+      environment 'PGPASSWORD' => new_resource.ctrl_password unless new_resource.ctrl_password.nil?
+      sensitive true
+      not_if { ! new_resource.remote_connection && follower? }
       only_if { database_exists?(new_resource) }
     end
   end
