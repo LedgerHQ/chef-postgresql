@@ -23,7 +23,7 @@ module PostgresqlCookbook
 
     def psql_command_string(new_resource, query, grep_for: nil, value_only: false)
       cmd = %(/usr/bin/psql -c "#{query}")
-      cmd << " -d #{new_resource.database}" if new_resource.database
+      cmd << " -d #{new_resource.database}" if new_resource.respond_to?(:database) && new_resource.database
       cmd << " -U #{new_resource.user}"     if new_resource.user
       cmd << " --host #{new_resource.host}" if new_resource.host
       cmd << " --port #{new_resource.port}" if new_resource.port
@@ -33,14 +33,19 @@ module PostgresqlCookbook
     end
 
     def execute_sql(new_resource, query)
-      # If we don't pass in a user to the resource
-      # default to the postgres user
-      user = new_resource.user || 'postgres'
+      # If we don't pass in a user to the resource, set user to postgres
+      # If we are connecting to a remote server then we don't need to execute the command as a particular user
+      user = new_resource.user || 'postgres' unless new_resource.respond_to?(:remote_connection) && new_resource.remote_connection
+      environment = if new_resource.respond_to?(:ctrl_password) && new_resource.ctrl_password
+                      psql_environment.merge('PGPASSWORD' => new_resource.ctrl_password)
+                    else
+                      psql_environment
+                    end
 
       # Query could be a String or an Array of Strings
       statement = query.is_a?(String) ? query : query.join("\n")
 
-      cmd = shell_out(statement, user: user, environment: psql_environment)
+      cmd = shell_out(statement, user: user, environment: environment)
 
       # Pass back cmd so we can decide what to do with it in the calling method.
       cmd

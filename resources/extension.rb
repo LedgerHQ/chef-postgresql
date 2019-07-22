@@ -20,32 +20,45 @@ property :old_version,      String
 property :version,          String
 
 # Connection prefernces
-property :user,     String, default: 'postgres'
-property :database, String, required: true
-property :host,     [String, nil]
-property :port,     Integer, default: 5432
+property :user,               String, default: 'postgres'
+property :ctrl_password,      String, sensitive: true
+property :database,           String, required: true
+property :host,               String
+property :port,               Integer, default: 5432
+property :remote_connection,  [true, false], default: false
 
 action :create do
   bash "CREATE EXTENSION #{new_resource.name}" do
     code create_extension_sql(new_resource)
-    user 'postgres'
+    user 'postgres' unless new_resource.remote_connection
     action :run
-    environment(psql_environment)
-    not_if { follower? || extension_installed?(new_resource) }
+    environment cmd_environment
+    sensitive true
+    not_if { ! new_resource.remote_connection && follower? }
+    not_if { extension_installed?(new_resource) }
   end
 end
 
 action :drop do
   bash "DROP EXTENSION #{new_resource.name}" do
     code psql_command_string(new_resource, "DROP EXTENSION IF EXISTS \"#{new_resource.extension}\"")
-    user 'postgres'
+    user 'postgres' unless new_resource.remote_connection
     action :run
-    environment(psql_environment)
-    not_if { follower? }
+    environment cmd_environment
+    sensitive true
+    not_if { ! new_resource.remote_connection && follower? }
     only_if { extension_installed?(new_resource) }
   end
 end
 
 action_class do
   include PostgresqlCookbook::Helpers
+
+  def cmd_environment
+    if new_resource.ctrl_password
+      psql_environment.merge('PGPASSWORD' => new_resource.ctrl_password)
+    else
+      psql_environment
+    end
+  end
 end
