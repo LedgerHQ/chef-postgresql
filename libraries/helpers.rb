@@ -133,18 +133,18 @@ module PostgresqlCookbook
     end
 
     def update_user_with_attributes_sql(new_resource, attr, value)
-      sql = %(ALTER ROLE #{new_resource.create_user} SET #{attr} = #{value})
+      sql = %(ALTER ROLE \\"#{new_resource.create_user}\\" SET #{attr} = #{value})
       psql_command_string(new_resource, sql)
     end
 
     def drop_user_sql(new_resource)
-      sql = %(DROP ROLE IF EXISTS '#{new_resource.create_user}')
+      sql = %(DROP ROLE IF EXISTS \\"#{new_resource.create_user}\\")
       psql_command_string(new_resource, sql)
     end
 
     def rds_grant_role_membership(new_resource)
       if new_resource.remote_connection && new_resource.aws_rds && new_resource.owner
-        sql = %(GRANT #{new_resource.owner} TO #{new_resource.user})
+        sql = %(GRANT \\"#{new_resource.owner}\\" TO \\"#{new_resource.user}\\")
         psql_command_string(new_resource, sql)
       end
     end
