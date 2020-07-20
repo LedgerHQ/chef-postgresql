@@ -22,11 +22,11 @@ module PostgresqlCookbook
     require 'securerandom'
 
     def psql_command_string(new_resource, query, grep_for: nil, value_only: false)
-      cmd = "/usr/bin/psql -c \"#{query}\""
+      cmd = %(/usr/bin/psql -c "#{query}")
       cmd << " -d #{new_resource.database}" if new_resource.respond_to?(:database) && new_resource.database
-      cmd << " -U #{new_resource.user}"
+      cmd << " -U #{new_resource.user}"     if new_resource.user
       cmd << " --host #{new_resource.host}" if new_resource.host
-      cmd << " --port #{new_resource.port}"
+      cmd << " --port #{new_resource.port}" if new_resource.port
       cmd << ' --tuples-only'               if value_only
       cmd << " | grep #{grep_for}"          if grep_for
       cmd
@@ -37,9 +37,9 @@ module PostgresqlCookbook
       # If we are connecting to a remote server then we don't need to execute the command as a particular user
       user = new_resource.user || 'postgres' unless new_resource.respond_to?(:remote_connection) && new_resource.remote_connection
       environment = if new_resource.respond_to?(:ctrl_password) && new_resource.ctrl_password
-                      { 'PGPASSWORD' => new_resource.ctrl_password }
+                      psql_environment.merge('PGPASSWORD' => new_resource.ctrl_password)
                     else
-                      Hash.new
+                      psql_environment
                     end
 
       # Query could be a String or an Array of Strings
@@ -86,7 +86,7 @@ module PostgresqlCookbook
     end
 
     def create_extension_sql(new_resource)
-      sql = "CREATE EXTENSION IF NOT EXISTS #{new_resource.extension}"
+      sql = %(CREATE EXTENSION IF NOT EXISTS #{new_resource.extension})
       sql << " FROM \"#{new_resource.old_version}\"" if new_resource.old_version
 
       psql_command_string(new_resource, sql)
@@ -132,7 +132,7 @@ module PostgresqlCookbook
       psql_command_string(new_resource, sql)
     end
 
-    def update_user_with_attributes_sql(new_resource, value)
+    def update_user_with_attributes_sql(new_resource, attr, value)
       sql = %(ALTER ROLE \\"#{new_resource.create_user}\\" SET #{attr} = #{value})
       psql_command_string(new_resource, sql)
     end
@@ -225,6 +225,7 @@ module PostgresqlCookbook
               "/usr/pgsql-#{new_resource.version}/bin/initdb"
             end
       cmd << " --locale '#{new_resource.initdb_locale}'" if new_resource.initdb_locale
+      cmd << " -E '#{new_resource.initdb_encoding}'" if new_resource.initdb_encoding
       cmd << " -D '#{data_dir(new_resource.version)}'"
     end
 
@@ -249,6 +250,12 @@ module PostgresqlCookbook
     # On Amazon use the RHEL 6 packages. Otherwise use the releasever yum variable
     def yum_releasever
       platform?('amazon') ? '6' : '$releasever'
+    end
+
+    # Fedora doesn't seem to know the right symbols for psql
+    def psql_environment
+      return {} unless platform?('fedora')
+      { LD_LIBRARY_PATH: '/usr/lib64' }
     end
 
     # Generate a password if the value is set to generate.

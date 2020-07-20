@@ -28,19 +28,20 @@ property :valid_until,        String
 property :attributes,         Hash, default: {}
 
 # Connection preferences
-property :user,               String, default: 'postgres', desired_state: false
-property :ctrl_password,      [String, nil], default: nil, sensitive: true, desired_state: false
-property :host,               [String, nil], default: nil, desired_state: false
-property :port,               Integer, default: 5432, desired_state: false
-property :remote_connection,  [true, false], default: false, desired_state: false
+property :user,               String, default: 'postgres'
+property :ctrl_password,      String, sensitive: true
+property :host,               String
+property :port,               Integer, default: 5432
+property :remote_connection,  [true, false], default: false
 
 action :create do
   Chef::Log.warn('You cannot use "attributes" property with the create action.') unless new_resource.attributes.empty?
 
-  execute "create postgresql user #{new_resource.create_user}" do # ~FC009
+  execute "create postgresql user #{new_resource.create_user}" do
     user 'postgres' unless new_resource.remote_connection
     command create_user_sql(new_resource)
-    environment 'PGPASSWORD' => new_resource.ctrl_password unless new_resource.ctrl_password.nil?
+    sensitive new_resource.sensitive
+    environment(cmd_environment)
     sensitive true
     not_if { ! new_resource.remote_connection && follower? }
     not_if { user_exists?(new_resource) }
@@ -52,7 +53,7 @@ action :update do
     execute "update postgresql user #{new_resource.create_user}" do
       user 'postgres' unless new_resource.remote_connection
       command update_user_sql(new_resource)
-      environment 'PGPASSWORD' => new_resource.ctrl_password unless new_resource.ctrl_password.nil?
+      environment(cmd_environment)
       sensitive true
       not_if { ! new_resource.remote_connection && follower? }
       only_if { user_exists?(new_resource) }
@@ -67,8 +68,8 @@ action :update do
 
       execute "Update postgresql user #{new_resource.create_user} to set #{attr}" do
         user 'postgres' unless new_resource.remote_connection
-        command update_user_with_attributes_sql(new_resource, v)
-        environment 'PGPASSWORD' => new_resource.ctrl_password unless new_resource.ctrl_password.nil?
+        command update_user_with_attributes_sql(new_resource, attr, v)
+        environment(cmd_environment)
         sensitive true
         not_if { ! new_resource.remote_connection && follower? }
         only_if { user_exists?(new_resource) }
@@ -81,7 +82,7 @@ action :drop do
   execute "drop postgresql user #{new_resource.create_user}" do
     user 'postgres' unless new_resource.remote_connection
     command drop_user_sql(new_resource)
-    environment 'PGPASSWORD' => new_resource.ctrl_password unless new_resource.ctrl_password.nil?
+    environment(cmd_environment)
     sensitive true
     not_if { ! new_resource.remote_connection && follower? }
     only_if { user_exists?(new_resource) }
@@ -90,4 +91,12 @@ end
 
 action_class do
   include PostgresqlCookbook::Helpers
+
+  def cmd_environment
+    if new_resource.ctrl_password
+      psql_environment.merge('PGPASSWORD' => new_resource.ctrl_password)
+    else
+      psql_environment
+    end
+  end
 end

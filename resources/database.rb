@@ -22,12 +22,12 @@ property :locale,   String, default: 'en_US.UTF-8'
 property :owner,    String
 
 # Connection prefernces
-property :user,               String, default: 'postgres', desired_state: false
-property :ctrl_password,      [String, nil], default: nil, sensitive: true, desired_state: false
-property :host,               [String, nil], default: nil, desired_state: false
-property :port,               Integer, default: 5432, desired_state: false
-property :remote_connection,  [true, false], default: false, desired_state: false
-property :aws_rds,            [true, false], default: false, desired_state: false
+property :user,               String, default: 'postgres'
+property :ctrl_password,      String, sensitive: true
+property :host,               String
+property :port,               Integer, default: 5432
+property :remote_connection,  [true, false], default: false
+property :aws_rds,            [true, false], default: false
 
 action :create do
   createdb = 'createdb'
@@ -50,7 +50,7 @@ action :create do
     new_resource_membership.database = 'postgres'
     execute "grant #{new_resource.owner} membership to #{new_resource.user}" do
       command rds_grant_role_membership(new_resource_membership)
-      environment 'PGPASSWORD' => new_resource.ctrl_password
+      environment cmd_environment
       sensitive true
       not_if { database_exists?(new_resource) }
     end
@@ -59,7 +59,7 @@ action :create do
   bash "create database #{new_resource.database}" do
     code createdb
     user new_resource.user unless new_resource.remote_connection
-    environment 'PGPASSWORD' => new_resource.ctrl_password unless new_resource.ctrl_password.nil?
+    environment cmd_environment
     sensitive true
     not_if { ! new_resource.remote_connection && follower? }
     not_if { database_exists?(new_resource) }
@@ -77,7 +77,7 @@ action :drop do
     bash "drop Postgresql database #{new_resource.database})" do
       code dropdb
       user 'postgres' unless new_resource.remote_connection
-      environment 'PGPASSWORD' => new_resource.ctrl_password unless new_resource.ctrl_password.nil?
+      environment cmd_environment
       sensitive true
       not_if { ! new_resource.remote_connection && follower? }
       only_if { database_exists?(new_resource) }
@@ -87,4 +87,12 @@ end
 
 action_class do
   include PostgresqlCookbook::Helpers
+
+  def cmd_environment
+    if new_resource.ctrl_password
+      psql_environment.merge('PGPASSWORD' => new_resource.ctrl_password)
+    else
+      psql_environment
+    end
+  end
 end

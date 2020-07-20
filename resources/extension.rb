@@ -20,19 +20,19 @@ property :old_version,      String
 property :version,          String
 
 # Connection prefernces
-property :user,               String, default: 'postgres', desired_state: false
-property :ctrl_password,      [String, nil], default: nil, sensitive: true, desired_state: false
-property :database,           [String, nil], default: nil, desired_state: false
-property :host,               [String, nil], default: nil, desired_state: false
-property :port,               Integer, default: 5432, desired_state: false
-property :remote_connection,  [true, false], default: false, desired_state: false
+property :user,               String, default: 'postgres'
+property :ctrl_password,      String, sensitive: true
+property :database,           String, required: true
+property :host,               String
+property :port,               Integer, default: 5432
+property :remote_connection,  [true, false], default: false
 
 action :create do
   bash "CREATE EXTENSION #{new_resource.name}" do
     code create_extension_sql(new_resource)
     user 'postgres' unless new_resource.remote_connection
     action :run
-    environment 'PGPASSWORD' => new_resource.ctrl_password unless new_resource.ctrl_password.nil?
+    environment cmd_environment
     sensitive true
     not_if { ! new_resource.remote_connection && follower? }
     not_if { extension_installed?(new_resource) }
@@ -44,7 +44,7 @@ action :drop do
     code psql_command_string(new_resource, "DROP EXTENSION IF EXISTS \"#{new_resource.extension}\"")
     user 'postgres' unless new_resource.remote_connection
     action :run
-    environment 'PGPASSWORD' => new_resource.ctrl_password unless new_resource.ctrl_password.nil?
+    environment cmd_environment
     sensitive true
     not_if { ! new_resource.remote_connection && follower? }
     only_if { extension_installed?(new_resource) }
@@ -53,4 +53,12 @@ end
 
 action_class do
   include PostgresqlCookbook::Helpers
+
+  def cmd_environment
+    if new_resource.ctrl_password
+      psql_environment.merge('PGPASSWORD' => new_resource.ctrl_password)
+    else
+      psql_environment
+    end
+  end
 end
